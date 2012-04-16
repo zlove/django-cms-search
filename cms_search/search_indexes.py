@@ -5,6 +5,8 @@ from django.conf import settings
 from django.core.exceptions import ImproperlyConfigured
 from django.utils.encoding import force_unicode
 from django.utils.translation import get_language, activate
+from django.db.models import Q
+
 
 try:
     from django.test.client import RequestFactory
@@ -67,7 +69,8 @@ def page_index_factory(language_code, proxy_model):
                 request.session = {}
                 self.prepared_data = super(_PageIndex, self).prepare(obj)
                 plugins = CMSPlugin.objects.filter(language=language_code, placeholder__in=obj.placeholders.all())
-                text = u''
+                text = obj.get_title(language=language_code) or u''
+                text += u' '
                 for plugin in plugins:
                     instance, _ = plugin.get_plugin_instance()
                     if hasattr(instance, 'search_fields'):
@@ -86,7 +89,8 @@ def page_index_factory(language_code, proxy_model):
         def index_queryset(self):
             # get the correct language and exclude pages that have a redirect
             qs = proxy_model.objects.published().filter(
-                title_set__language=language_code, title_set__redirect__isnull=True).distinct()
+                title_set__language=language_code).filter(Q(title_set__redirect__isnull=False) | Q(title_set__redirect='')).distinct()
+
             if 'publisher' in settings.INSTALLED_APPS:
                 qs = qs.filter(publisher_is_draft=True)
             return qs
